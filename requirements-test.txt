@@ -1,0 +1,26 @@
+# Test-specific dependencies
+# These are additional libraries used in the test suite beyond the main requirements.txt
+
+# File system utilities
+pathlib2==2.3.7.post1  # Provides Path utilities for older Python versions
+
+# Temporary file management
+# tempfile is part of standard library, no installation needed
+
+# Testing utilities
+pytest==8.3.2  # Although tests use custom framework, pytest can be used for discovery
+pytest-cov==5.0.0  # Coverage reporting if needed
+
+# Visualization for test analysis
+matplotlib==3.8.2  # Already in main requirements but listed for clarity
+
+# Additional standard library modules used in tests:
+# - sys (standard library)
+# - os (standard library)
+# - time (standard library)
+# - tempfile (standard library)
+# - shutil (standard library)
+# - collections (standard library)
+
+# Note: All other dependencies (torch, torchvision, numpy, pandas, sklearn, omegaconf, timm)
+# are already covered in the main requirements.txt file

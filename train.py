@@ -177,20 +177,20 @@ def capture_curvature(model, train_loader, device, cfg, global_step, rank, seed)
     elapsed = time.time() - start_time
     print(f"Curvature computation took {elapsed:.2f}s")
     
-        # Save results
-        results = {
-            'step': global_step,
-            'eigenvalues': eigenvalues,
-            'metrics': metrics,
-            'n_params': n_params,
-            'elapsed_time': elapsed,
-            'git_hash': get_git_hash()
-        }
-        
-        # Save to file
-        save_path = Path(cfg.experiment.save_dir) / f"{cfg.experiment.name}_seed{seed}_step{global_step}_curvature.pt"
-        torch.save(results, save_path)
-        print(f"Saved curvature to {save_path}")
+    # Save results
+    results = {
+        'step': global_step,
+        'eigenvalues': eigenvalues,
+        'metrics': metrics,
+        'n_params': n_params,
+        'elapsed_time': elapsed,
+        'git_hash': get_git_hash()
+    }
+    
+    # Save to file
+    save_path = Path(cfg.experiment.save_dir) / f"{cfg.experiment.name}_seed{seed}_step{global_step}_curvature.pt"
+    torch.save(results, save_path)
+    print(f"Saved curvature to {save_path}")
     else:
         # Other ranks wait
         metrics = None
