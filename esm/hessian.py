@@ -9,7 +9,7 @@ from typing import Tuple, List, Optional
 
 def flatten_params(params: List[torch.Tensor]) -> torch.Tensor:
     """Flatten list of parameter tensors into a single vector."""
-    return torch.cat([p.view(-1) for p in params])
+    return torch.cat([p.reshape(-1) for p in params])
 
 
 def unflatten_params(vec: torch.Tensor, shapes: List[torch.Size]) -> List[torch.Tensor]:

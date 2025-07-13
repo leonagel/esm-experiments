@@ -54,19 +54,31 @@ def get_dataset(cfg):
     transform_train = get_transform(cfg.dataset.name, is_train=True)
     transform_test = get_transform(cfg.dataset.name, is_train=False)
     
+    # Check ./data first, then fall back to config path
+    data_root = cfg.dataset.root
+    if Path('./data').exists():
+        if cfg.dataset.name == 'cifar10' and (Path('./data') / 'cifar-10-batches-py').exists():
+            data_root = './data'
+            if data_root != cfg.dataset.root:
+                print(f"Using CIFAR-10 data from ./data instead of {cfg.dataset.root}")
+        elif cfg.dataset.name == 'cifar100' and (Path('./data') / 'cifar-100-python').exists():
+            data_root = './data'
+            if data_root != cfg.dataset.root:
+                print(f"Using CIFAR-100 data from ./data instead of {cfg.dataset.root}")
+    
     if cfg.dataset.name == 'cifar10':
         train_dataset = datasets.CIFAR10(
-            root=cfg.dataset.root, train=True, download=cfg.dataset.download, transform=transform_train
+            root=data_root, train=True, download=cfg.dataset.download, transform=transform_train
         )
         test_dataset = datasets.CIFAR10(
-            root=cfg.dataset.root, train=False, download=cfg.dataset.download, transform=transform_test
+            root=data_root, train=False, download=cfg.dataset.download, transform=transform_test
         )
     elif cfg.dataset.name == 'cifar100':
         train_dataset = datasets.CIFAR100(
-            root=cfg.dataset.root, train=True, download=cfg.dataset.download, transform=transform_train
+            root=data_root, train=True, download=cfg.dataset.download, transform=transform_train
         )
         test_dataset = datasets.CIFAR100(
-            root=cfg.dataset.root, train=False, download=cfg.dataset.download, transform=transform_test
+            root=data_root, train=False, download=cfg.dataset.download, transform=transform_test
         )
     else:
         raise ValueError(f"Unknown dataset: {cfg.dataset.name}")
@@ -137,60 +149,60 @@ def capture_curvature(model, train_loader, device, cfg, global_step, rank, seed)
             original_model = model
         
         # Get a random batch for curvature computation
-    dataloader = DataLoader(
-        train_loader.dataset,
-        batch_size=cfg.curvature.batch_size,
-        shuffle=True,
-        num_workers=4
-    )
-    
-    # Get one batch without augmentation
-    for images, labels in dataloader:
-        images = images.to(device)
-        labels = labels.to(device)
-        break
-    
-    # Forward pass (use original model if compiled)
-    with torch.enable_grad():
-        outputs = original_model(images)
-        loss = nn.CrossEntropyLoss()(outputs, labels)
-    
-    # Compute top-k eigenvalues
-    print(f"Computing curvature at step {global_step}...")
-    start_time = time.time()
-    
-    eigenvalues = lanczos_eigs(
-        original_model, loss,
-        k=cfg.curvature.top_k,
-        max_iter=cfg.curvature.lanczos_max_iter,
-        use_double=True  # Use float64 for better numerical precision
-    )
-    
-    # Compute ESM metrics
-    n_params = count_parameters(original_model)
-    metrics = compute_esm(
-        eigenvalues,
-        n_params=n_params,
-        n_samples=cfg.curvature.batch_size
-    )
-    
-    elapsed = time.time() - start_time
-    print(f"Curvature computation took {elapsed:.2f}s")
-    
-    # Save results
-    results = {
-        'step': global_step,
-        'eigenvalues': eigenvalues,
-        'metrics': metrics,
-        'n_params': n_params,
-        'elapsed_time': elapsed,
-        'git_hash': get_git_hash()
-    }
-    
-    # Save to file
-    save_path = Path(cfg.experiment.save_dir) / f"{cfg.experiment.name}_seed{seed}_step{global_step}_curvature.pt"
-    torch.save(results, save_path)
-    print(f"Saved curvature to {save_path}")
+        dataloader = DataLoader(
+            train_loader.dataset,
+            batch_size=cfg.curvature.batch_size,
+            shuffle=True,
+            num_workers=4
+        )
+        
+        # Get one batch without augmentation
+        for images, labels in dataloader:
+            images = images.to(device)
+            labels = labels.to(device)
+            break
+        
+        # Forward pass (use original model if compiled)
+        with torch.enable_grad():
+            outputs = original_model(images)
+            loss = nn.CrossEntropyLoss()(outputs, labels)
+        
+        # Compute top-k eigenvalues
+        print(f"Computing curvature at step {global_step}...")
+        start_time = time.time()
+        
+        eigenvalues = lanczos_eigs(
+            original_model, loss,
+            k=cfg.curvature.top_k,
+            max_iter=cfg.curvature.lanczos_max_iter,
+            use_double=True  # Use float64 for better numerical precision
+        )
+        
+        # Compute ESM metrics
+        n_params = count_parameters(original_model)
+        metrics = compute_esm(
+            eigenvalues,
+            n_params=n_params,
+            n_samples=cfg.curvature.batch_size
+        )
+        
+        elapsed = time.time() - start_time
+        print(f"Curvature computation took {elapsed:.2f}s")
+        
+        # Save results
+        results = {
+            'step': global_step,
+            'eigenvalues': eigenvalues,
+            'metrics': metrics,
+            'n_params': n_params,
+            'elapsed_time': elapsed,
+            'git_hash': get_git_hash()
+        }
+        
+        # Save to file
+        save_path = Path(cfg.experiment.save_dir) / f"{cfg.experiment.name}_seed{seed}_step{global_step}_curvature.pt"
+        torch.save(results, save_path)
+        print(f"Saved curvature to {save_path}")
     else:
         # Other ranks wait
         metrics = None
@@ -267,8 +279,11 @@ def main(rank, world_size, cfg, seed):
     dist.init_process_group(cfg.distributed.backend, rank=rank, world_size=world_size)
     
     # Set device
-    torch.cuda.set_device(rank)
-    device = torch.device(f'cuda:{rank}')
+    if torch.cuda.is_available():
+        torch.cuda.set_device(rank)
+        device = torch.device(f'cuda:{rank}')
+    else:
+        device = torch.device('cpu')
     
     # Set seed
     set_seed(seed + rank)
@@ -282,7 +297,7 @@ def main(rank, world_size, cfg, seed):
         batch_size=cfg.training.batch_size // world_size,
         sampler=train_sampler,
         num_workers=4,
-        pin_memory=True
+        pin_memory=torch.cuda.is_available()
     )
     
     test_loader = DataLoader(
@@ -290,14 +305,19 @@ def main(rank, world_size, cfg, seed):
         batch_size=cfg.training.batch_size,
         shuffle=False,
         num_workers=4,
-        pin_memory=True
+        pin_memory=torch.cuda.is_available()
     )
     
     # Create model
     model = get_model(cfg).to(device)
-    if cfg.compute.compile_model:
+    if cfg.compute.compile_model and torch.cuda.is_available():
         model = torch.compile(model)
-    model = DDP(model, device_ids=[rank])
+    
+    # Wrap with DDP - different args for CPU vs GPU
+    if torch.cuda.is_available():
+        model = DDP(model, device_ids=[rank])
+    else:
+        model = DDP(model)
     
     # Create optimizer and scheduler
     optimizer = get_optimizer(model, cfg)

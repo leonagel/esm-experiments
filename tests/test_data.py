@@ -21,21 +21,32 @@ def test_cifar10_loading():
     """Test CIFAR-10 dataset loading."""
     print("\nTesting CIFAR-10 loading...")
     
-    # Create a temporary directory for data
-    import tempfile
-    with tempfile.TemporaryDirectory() as tmpdir:
-        # Load CIFAR-10 (download if needed)
+    # Check if data exists in ./data first
+    if Path('./data').exists() and (Path('./data') / 'cifar-10-batches-py').exists():
+        data_root = './data'
+        download = False
+        print("  Using existing CIFAR-10 data from ./data")
+    else:
+        # Create a temporary directory for data
+        import tempfile
+        tmpdir = tempfile.mkdtemp()
+        data_root = tmpdir
+        download = True
+        print("  Downloading CIFAR-10 to temporary directory")
+    
+    try:
+        # Load CIFAR-10
         train_dataset = datasets.CIFAR10(
-            root=tmpdir, 
+            root=data_root, 
             train=True, 
-            download=True,
+            download=download,
             transform=transforms.ToTensor()
         )
         
         test_dataset = datasets.CIFAR10(
-            root=tmpdir,
+            root=data_root,
             train=False,
-            download=True,
+            download=download,
             transform=transforms.ToTensor()
         )
         
@@ -58,19 +69,36 @@ def test_cifar10_loading():
         print(f"  Image shape: {image.shape}")
         print(f"  Num classes: {len(set(train_dataset.targets))}")
         print("✓ CIFAR-10 loading test passed!")
+    finally:
+        # Clean up temporary directory if we created one
+        if download and 'tmpdir' in locals():
+            import shutil
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 def test_cifar100_loading():
     """Test CIFAR-100 dataset loading."""
     print("\nTesting CIFAR-100 loading...")
     
-    import tempfile
-    with tempfile.TemporaryDirectory() as tmpdir:
+    # Check if data exists in ./data first
+    if Path('./data').exists() and (Path('./data') / 'cifar-100-python').exists():
+        data_root = './data'
+        download = False
+        print("  Using existing CIFAR-100 data from ./data")
+    else:
+        # Create a temporary directory for data
+        import tempfile
+        tmpdir = tempfile.mkdtemp()
+        data_root = tmpdir
+        download = True
+        print("  Downloading CIFAR-100 to temporary directory")
+    
+    try:
         # Load CIFAR-100
         train_dataset = datasets.CIFAR100(
-            root=tmpdir,
+            root=data_root,
             train=True,
-            download=True,
+            download=download,
             transform=transforms.ToTensor()
         )
         
@@ -88,6 +116,11 @@ def test_cifar100_loading():
         print(f"  Train dataset: {len(train_dataset)} samples")
         print(f"  Num classes: {len(unique_labels)}")
         print("✓ CIFAR-100 loading test passed!")
+    finally:
+        # Clean up temporary directory if we created one
+        if download and 'tmpdir' in locals():
+            import shutil
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 def test_data_transforms():
