@@ -1,0 +1,43 @@
+# ResNet-18 on CIFAR-100 with random labels  
+model:
+  name: resnet18
+  num_classes: 100
+  
+dataset:
+  name: cifar100
+  root: ./data
+  download: true
+  label_corruption: true
+  corruption_seed: 42
+  
+training:
+  batch_size: 512
+  epochs: 25
+  optimizer:
+    type: sgd
+    lr: 0.1
+    momentum: 0.9
+    weight_decay: 5e-4
+  scheduler:
+    type: cosine
+    warmup_steps: 0
+  
+curvature:
+  checkpoints: [100, 500, 2000]
+  top_k: 30
+  lanczos_max_iter: 80
+  batch_size: 512
+  
+distributed:
+  devices: 2
+  backend: nccl
+  
+experiment:
+  seeds: [1337, 2024, 9001]
+  name: resnet_cifar100_rand
+  save_dir: ./results
+  log_wandb: false
+  
+compute:
+  precision: float32
+  compile_model: true
